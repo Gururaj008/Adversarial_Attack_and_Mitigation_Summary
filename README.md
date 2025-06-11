@@ -1,60 +1,108 @@
-# Adversarial_Attack_and_Mitigation_Summary
+# CIFAR-10 Classification, Adversarial Attacks (FGSM), and Mitigation Strategies
 
+This repository explores the process of training a Convolutional Neural Network (CNN) on the CIFAR-10 dataset, demonstrating its vulnerability to Fast Gradient Sign Method (FGSM) adversarial attacks, and evaluating several common image processing techniques as defenses.
 
-Adversarial Attack and Mitigation on CIFAR-10
+## Project Overview
 
-This project explores adversarial attacks on deep learning models and implements simple mitigation strategies. It focuses on the Fast Gradient Sign Method (FGSM) attack applied to a CNN trained on the CIFAR-10 dataset and evaluates the impact of techniques like JPEG compression and Gaussian blurring for defense.
-📦 Dataset
+The project is structured into three main parts:
 
-    CIFAR-10: 60,000 32×32 RGB images across 10 classes:
+1.  **Model Training (`Code_part_01.ipynb` or similar)**:
+    *   A custom CNN (`ImprovedCNN`) is built and trained on the CIFAR-10 dataset.
+    *   Techniques like data augmentation, Batch Normalization, Dropout, AdamW optimizer, learning rate scheduling, and Automatic Mixed Precision (AMP) are employed for robust training.
+    *   The best trained model is saved for subsequent attack and defense experiments.
 
-        Airplane, Automobile, Bird, Cat, Deer, Dog, Frog, Horse, Ship, Truck
+2.  **Adversarial Attack & Mitigation (`Code_part_02.ipynb` or similar)**:
+    *   The trained model is loaded.
+    *   FGSM attacks are performed on sample images from the CIFAR-10 test set using the `torchattacks` library.
+    *   The impact of the attack is evaluated by observing misclassifications.
+    *   Four image pre-processing techniques are applied as defenses to the adversarial images:
+        *   Gaussian Blur
+        *   JPEG Compression
+        *   Median Filter
+        *   Total Variation (TV) Denoise
+    *   The effectiveness of these defenses in restoring the correct classification is assessed.
 
-    Split: 50,000 training images + 10,000 test images
+## Key Components and Findings
 
-    Preprocessing:
+### 1. Dataset and Preprocessing
 
-        Converted to PyTorch tensors
+*   **Dataset**: CIFAR-10 (60,000 32x32 RGB images, 10 classes).
+*   **Preprocessing**:
+    *   Standard PyTorch tensor conversion.
+    *   **Normalization**: CIFAR-10 specific mean and standard deviation.
+        *   Train Mean: (0.4914, 0.4822, 0.4465), Std: (0.2470, 0.2435, 0.2616)
+        *   Test Mean: (0.4942, 0.4851, 0.4504), Std: (0.2467, 0.2429, 0.2616)
+    *   **Augmentation (Training)**: Random Crop, Random Horizontal Flip.
 
-        Normalized to [0, 1] pixel range
+### 2. Model Architecture (`ImprovedCNN`)
 
-        Data augmentation used during mitigation (Gaussian blur, JPEG compression)
+*   **Convolutional Base**: Three blocks of `Conv2D → BatchNorm → ReLU → Conv2D → BatchNorm → ReLU → MaxPool`.
+    *   Channels progress: 3 → 64 → 128 → 256.
+*   **Classifier Head**: `Flatten → Dropout(0.5) → Linear(256*4*4 → 512) → ReLU → Dropout(0.5) → Linear(512 → 10)`.
+*   **Performance**: Achieved ~80.04% validation accuracy and ~81.56% test accuracy after 10 epochs.
 
-🏗️ Model
+### 3. Adversarial Attack: Fast Gradient Sign Method (FGSM)
 
-    SimpleCNN architecture:
+*   **Library**: `torchattacks`.
+*   **Configuration**: `atk.set_normalization_used(mean=CIFAR_MEAN, std=CIFAR_STD)` was crucial for correct `epsilon` application in the `[0,1]` space and proper re-normalization of the adversarial output.
+*   **Parameters**: Epsilon (ε) values like `0.01` were tested.
+*   **Outcome**: Successfully fooled the model (e.g., "ship" → "automobile" with ε=0.01). The observed max perturbation in the normalized space (~0.0412 for ε=0.01) aligned with theoretical expectations (`ε / min_std`).
 
-        2 convolutional blocks (Conv2D + ReLU + MaxPool)
+### 4. Mitigation Strategies & Results
 
-        Fully connected layer (Linear(64*8*8 → 10))
+The following defenses were tested on an adversarial image (original "ship" → adversarial "automobile"):
 
-    Training:
+| Defense Technique        | Parameters   | Outcome on Adversarial "Automobile" | Classification After Defense |
+| :----------------------- | :----------- | :---------------------------------- | :--------------------------- |
+| Gaussian Blur            | kernel=3x3   | **Successful Mitigation**           | ship (#8)                    |
+| JPEG Compression         | quality=30   | **Failed Mitigation**               | automobile (#1)              |
+| Median Filter            | kernel=3x3   | **Failed Mitigation**               | automobile (#1)              |
+| Total Variation Denoise  | weight=0.1   | **Successful Mitigation**           | ship (#8)                    |
 
-        1 epoch
+These results highlight that while some simple image processing techniques can counteract FGSM attacks, their effectiveness is not universal and depends on the specific attack, image, and defense parameters.
 
-        Adam optimizer (learning rate: 0.001)
+## Repository Structure
 
-    Output:
+*   `Code_part_01.ipynb`: Jupyter Notebook for model training and saving.
+*   `Code_part_02.ipynb`: Jupyter Notebook for loading the model, performing FGSM attacks, and applying/evaluating mitigation techniques.
+*   `best_model.pth`: (Generated by `Code_part_01.ipynb`) The saved weights of the trained `ImprovedCNN` model.
+*   `README.md`: This file.
+*   (Potentially `requirements.txt` or environment file if dependencies are complex)
 
-        Converged training loss ~1.53
+## How to Run
 
-        Model checkpoint saved for attack/mitigation evaluation
+1.  **Setup Environment**:
+    *   Ensure you have Python 3.x installed.
+    *   Install necessary libraries:
+        ```bash
+        pip install torch torchvision torchaudio torchattacks matplotlib numpy opencv-python scikit-image Pillow
+        ```
+    *   (Optional but recommended) Use a virtual environment.
 
-⚔️ Adversarial Attack
+2.  **Train the Model**:
+    *   Run the `Code_part_01.ipynb` notebook. This will train the `ImprovedCNN` model on CIFAR-10 and save the weights as `best_model.pth`.
 
-    Method: Fast Gradient Sign Method (FGSM)
+3.  **Perform Attacks and Test Defenses**:
+    *   Once `best_model.pth` is generated, run the `Code_part_02.ipynb` notebook. This will load the trained model, generate adversarial examples, apply defenses, and visualize the results.
 
-    Objective: Fool the classifier by generating perturbed images
+## Dependencies
 
-    Results: Significant drop in model accuracy on attacked images
+*   PyTorch (`torch`, `torchvision`, `torchaudio`)
+*   `torchattacks`
+*   `matplotlib`
+*   `numpy`
+*   OpenCV (`opencv-python`)
+*   Scikit-image (`scikit-image`)
+*   Pillow (`PIL`)
 
-🛡️ Mitigation Techniques
+## Future Work & Exploration
 
-- Gaussian Blur: Applies a smoothing filter to reduce high-frequency noise introduced by adversarial perturbations.
+*   Test against stronger, iterative adversarial attacks (e.g., PGD, BIM, AutoAttack).
+*   Implement and evaluate more advanced defense mechanisms (e.g., adversarial training, defensive distillation).
+*   Explore the transferability of adversarial attacks.
+*   Conduct a more comprehensive evaluation across a larger set of images and attack parameters.
 
-- JPEG Compression: Compresses images at a low quality (q=30), helping to discard subtle adversarial noise.
+## Acknowledgements
 
-- Median Filtering: Uses a median filter (k=3) to effectively remove salt-and-pepper-like noise introduced by attacks.
-
-- Total Variation Denoising: An optimization-based technique that reduces pixel-level noise while preserving essential structures, helping restore clean-like features in adversarially perturbed images.
-
+*   The `torchattacks` library for providing easy-to-use implementations of various adversarial attacks.
+*   The CIFAR-10 dataset creators.
